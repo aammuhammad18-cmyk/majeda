@@ -53,6 +53,26 @@ _WEIGHTS = {
     "audio_gaps":     10,
 }
 
+_LOUDNORM_TARGET = -12.0
+_LOUDNORM_TOLERANCE = 2.0
+
+_HARD_FAIL = {"audio_failure", "resolution"}
+_SEVERE = {"file_integrity", "resolution", "audio_sync", "freeze_frame"}
+_VOICE_DEGRADED_POINTS = 3
+
+
+def _award(name: str, weight: int, result: str) -> int:
+    if result == "pass" or result == "ok":
+        return weight
+    if name == "voice_quality":
+        if "degraded" in result:
+            return _VOICE_DEGRADED_POINTS
+        if result == "ok" or result == "pass" or result.startswith("pass") or result.startswith("ok"):
+            return weight
+    if result.startswith("pass") or result.startswith("ok"):
+        return weight
+    return 0
+
 
 def run_quality_gate(
     video_path: Path,
@@ -253,9 +273,9 @@ def _subtitles_readonly(subtitles_dir: Path, timeline: dict):
     for sc in timeline["scenes"]:
         sc_end = sc["end_ms"]
         for ln in sc.get("subtitle_lines", []):
-            ceiling = min(sc_end, total_ms) - 100
+            ceiling = min(sc_end, total_ms)
             if ln["end_ms"] > ceiling:
-                pass  # overflow — would be clamped, not a failure
+                return False, f"subtitle overflow by {ln['end_ms'] - ceiling}ms (scene {sc['scene_id']})"
             if ln["end_ms"] - ln["start_ms"] < 300:
                 return False, f"subtitle < 300ms (scene {sc['scene_id']})"
     return True, "ok"
