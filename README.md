@@ -1,4 +1,4 @@
-# MindBlownFacts — YouTube Automation Pipeline
+# Majeda — YouTube Automation Pipeline
 
 Fully automated pipeline that selects a world-facts topic, writes a retention-psychology script, generates an emotion-tuned voiceover, assembles a branded video with logo overlay and animated close scene, and uploads it to YouTube. Runs on GitHub Actions three times a day — two Shorts and one long-form standard video.
 
