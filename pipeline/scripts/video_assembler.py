@@ -34,8 +34,8 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-_CHANNEL   = "MindBlownFacts"
-_TAGLINE   = "Discover Your World"
+_CHANNEL   = os.environ.get("BRAND_NAME", "Majeda")
+_TAGLINE   = os.environ.get("BRAND_TAGLINE", "The Unseen World")
 _LOGO_PATH = Path(__file__).parent.parent / "assets" / "logo.png"
 
 _INTENT_COLOR = {

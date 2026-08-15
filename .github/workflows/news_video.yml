@@ -73,6 +73,9 @@ jobs:
 
       - name: Run Video Pipeline
         env:
+          BRAND_NAME:            ${{ secrets.BRAND_NAME || 'Majeda' }}
+          BRAND_HANDLE:          ${{ secrets.BRAND_HANDLE || '@Majeda-kareem' }}
+          BRAND_TAGLINE:         ${{ secrets.BRAND_TAGLINE || 'The Unseen World' }}
           VIDEO_FORMAT:          ${{ steps.fmt.outputs.format }}
           INTENT_OVERRIDE:       ${{ github.event.inputs.intent_override }}
           GROQ_API_KEY_1:        ${{ secrets.GROQ_API_KEY_1 }}

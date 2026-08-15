@@ -30,27 +30,30 @@ import requests
 
 log = logging.getLogger(__name__)
 
-_PLAYLISTS = {
-    "SPACE":       "MindBlownFacts — Space",
-    "SCIENCE":     "MindBlownFacts — Science",
-    "HISTORY":     "MindBlownFacts — History",
-    "ANIMALS":     "MindBlownFacts — Animals",
-    "NATURE":      "MindBlownFacts — Nature",
-    "GEOGRAPHY":   "MindBlownFacts — Geography",
-    "OCEAN":       "MindBlownFacts — Ocean",
-    "CULTURE":     "MindBlownFacts — Culture",
-    "TECHNOLOGY":  "MindBlownFacts — Technology",
-    "PSYCHOLOGY":  "MindBlownFacts — Psychology",
-    "MYTHOLOGY":   "MindBlownFacts — Mythology",
-    "MEDICINE":    "MindBlownFacts — Medicine",
-    "MATHEMATICS": "MindBlownFacts — Mathematics",
-    "ECONOMICS":   "MindBlownFacts — Economics",
-    "PHYSICS":     "MindBlownFacts — Physics",
-}
+def _get_brand_name() -> str:
+    return os.environ.get("BRAND_NAME", "Majeda")
 
-# Master playlists by format — keeps Shorts and full videos separate for autoplay
-_MASTER_PLAYLIST_SHORTS   = "MindBlownFacts — Best Shorts"
-_MASTER_PLAYLIST_STANDARD = "MindBlownFacts — Full Episodes"
+def _get_brand_handle() -> str:
+    handle = os.environ.get("BRAND_HANDLE", "@Majeda-kareem")
+    return handle if handle.startswith("@") else f"@{handle}"
+
+_PLAYLISTS = {
+    "SPACE":       "Space",
+    "SCIENCE":     "Science",
+    "HISTORY":     "History",
+    "ANIMALS":     "Animals",
+    "NATURE":      "Nature",
+    "GEOGRAPHY":   "Geography",
+    "OCEAN":       "Ocean",
+    "CULTURE":     "Culture",
+    "TECHNOLOGY":  "Technology",
+    "PSYCHOLOGY":  "Psychology",
+    "MYTHOLOGY":   "Mythology",
+    "MEDICINE":    "Medicine",
+    "MATHEMATICS": "Mathematics",
+    "ECONOMICS":   "Economics",
+    "PHYSICS":     "Physics",
+}
 
 _LOGS_DIR            = Path(__file__).parent.parent / "logs"
 _PLAYLIST_CACHE_FILE = _LOGS_DIR / "playlist_ids.json"
@@ -179,14 +182,16 @@ def upload_video(
     except Exception as exc:
         log.warning("Token re-fetch before playlist failed: %s", exc)
 
-    # Category playlist (e.g. MindBlownFacts — Space)
-    pl_name = _PLAYLISTS.get(topic.get("intent", "").upper(), "MindBlownFacts — World")
+    # Category playlist (e.g. Majeda — Space)
+    brand_name = _get_brand_name()
+    pl_cat_label = _PLAYLISTS.get(topic.get("intent", "").upper(), "World")
+    pl_name = f"{brand_name} — {pl_cat_label}"
     pl_id   = _playlist(token, pl_name)
     if pl_id:
         _add_to_playlist(token, video_id, pl_id)
 
     # Master format playlist — keeps Shorts and full videos separate for autoplay
-    master_name = _MASTER_PLAYLIST_SHORTS if profile == "shorts" else _MASTER_PLAYLIST_STANDARD
+    master_name = f"{brand_name} — Best Shorts" if profile == "shorts" else f"{brand_name} — Full Episodes"
     master_id   = _playlist(token, master_name)
     if master_id:
         _add_to_playlist(token, video_id, master_id)
@@ -293,15 +298,18 @@ def _build_meta(script: dict, topic: dict, timeline: dict, profile: str) -> dict
     if is_short:
         first_line = f"#Shorts {first_line}" if "#Shorts" not in first_line else first_line
 
+    brand_name   = _get_brand_name()
+    brand_handle = _get_brand_handle()
+
     # Fix 5: channel link in every description — converts viewers to subscribers
-    channel_link = "🔔 Subscribe for daily science and history facts: https://www.youtube.com/@MindBlownFacts-z8o"
+    channel_link = f"🔔 Subscribe for more: https://www.youtube.com/{brand_handle}"
 
     parts: list[str] = [
         first_line,
         "",
         rest_lines if rest_lines else (
             f"Discover the real science behind {cat.lower()} — facts most people "
-            f"never learn in school. Subscribe to MindBlownFacts for new facts every day."
+            f"never learn in school. Subscribe to {brand_name} for new videos every day."
         ),
         "",
         channel_link,
@@ -336,8 +344,8 @@ def _build_meta(script: dict, topic: dict, timeline: dict, profile: str) -> dict
     tags = list(dict.fromkeys(
         meta.get("tags", [])
         + [
-            "facts", "did you know", "educational", "MindBlownFacts",
-            "facts 2025", "quick facts", "science facts", "real facts",
+            "facts", "did you know", "educational", brand_name,
+            "facts 2026", "quick facts", "science facts", "real facts",
             "hidden facts", "unknown facts", "facts explained",
             f"{cat_lower} facts", f"{cat_lower} explained", f"{cat_lower} science",
             "facts you didn't know", "world facts", "top facts",
@@ -467,7 +475,8 @@ def _chapter_label(segment_label: str) -> str:
 
 
 def _build_hashtags(cat: str, script_tags: list, profile: str) -> str:
-    base       = ["#MindBlownFacts", "#Facts", "#DidYouKnow", "#WorldFacts",
+    brand_tag  = f"#{_get_brand_name().replace(' ', '')}"
+    base       = [brand_tag, "#Facts", "#DidYouKnow", "#WorldFacts",
                   "#Educational", "#InterestingFacts", "#MindBlowing"]
     pool       = _CAT_HASHTAGS.get(cat.upper(), ["#WorldFacts"])
     chosen_cat = random.sample(pool, min(5, len(pool)))

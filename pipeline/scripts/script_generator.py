@@ -41,12 +41,15 @@ _MODEL_CLUSTER = "llama-3.1-8b-instant"       # cluster: 30,000 TPM vs 6,000 TPM
 
 # ── Narrative templates ───────────────────────────────────────────────────────
 
+def _get_brand_name() -> str:
+    return os.environ.get("BRAND_NAME", "Majeda")
+
 _CLOSE_RULE = (
     "TWO parts: (1) Echo a specific word or phrase from the HOOK — this creates a loop "
     "that makes viewers rewatch. Hook: 'Your brain is lying' → Close starts: 'Your brain never stops lying.' "
     "Hook: 'Dead. Still moving.' → Close starts: 'It was never really dead.' "
     "(2) Then ONE subscribe CTA sentence. Vary wording: "
-    "'Follow MindBlownFacts — a new fact drops every day.' "
+    f"'Follow {_get_brand_name()} — a new fact drops every day.' "
     "/ 'Subscribe for more facts that shatter what you think you know.' "
     "NEVER say 'Like and subscribe' or 'Hit the bell'."
 )
@@ -57,9 +60,9 @@ _CLOSE_RULE_STANDARD = (
     "(1) Echo ONE specific word or phrase from the HOOK — creates a mental rewatch loop. "
     "Example: HOOK started 'Black holes stop time' → CLOSE starts 'Time. It was always the answer.' "
     "(2) Natural subscribe CTA — vary the wording every video: "
-    "'Follow MindBlownFacts — a new fact drops every day.' "
-    "/ 'Subscribe to MindBlownFacts for facts that change how you see the world.' "
-    "/ 'MindBlownFacts — subscribe if this changed how you see it.' "
+    f"'Follow {_get_brand_name()} — a new fact drops every day.' "
+    f"/ 'Subscribe to {_get_brand_name()} for facts that change how you see the world.' "
+    f"/ '{_get_brand_name()} — subscribe if this changed how you see it.' "
     "NEVER say 'Like and subscribe' or 'Hit the bell'. "
     "(3) Forward momentum sentence — end the video with desire for the next one: "
     "'The next fact makes this one look ordinary.' "
@@ -371,7 +374,7 @@ def _build_tags_for_prompt(intent: str) -> str:
     tags.append(
         "REPLACE_WITH_5_TOPIC_SPECIFIC_TAGS: use exact long-tail phrases people search for this topic"
     )
-    tags += ["MindBlownFacts", "educational", "facts", "did you know"]
+    tags += [_get_brand_name(), "educational", "facts", "did you know"]
     return json.dumps(tags)
 
 
@@ -388,7 +391,7 @@ def _load_viewer_note() -> str:
     return ""
 
 
-_SYSTEM_TMPL = """You are a world-class educational YouTube scriptwriter for the channel "MindBlownFacts".
+_SYSTEM_TMPL = """You are a world-class educational YouTube scriptwriter for the channel "{channel_name}".
 Your scripts use retention psychology to make viewers feel they can't stop watching.
 Content: real-world facts — science, history, nature, space, animals, geography, ocean, culture.
 ACCURACY RULE: Every fact, number, and claim must be real and verifiable. Never invent statistics or events. If verified facts are provided below, treat them as ground truth.
@@ -489,7 +492,7 @@ Return EXACTLY this JSON (no extra keys, no markdown fences):
   "full_script": "all segments combined into one paragraph",
   "metadata": {{
     "title": "Write a YouTube title for '{title}'. RULES: (1) STRONGLY PREFER format K from the FORMAT POOL — use the | separator: 'Hook phrase | Search category 🔬'. This is the highest-performing SEO format. (2) If format K doesn't fit naturally, pick any other format from the pool — vary, never reuse the same format twice. (3) First 40 chars must contain the main topic keyword. (4) Under 70 chars total. (5) End with exactly 1 relevant emoji. (6) No ALL CAPS. (7) Must describe '{title}' exactly — no subject changes. (8) NEVER use: Nobody Told You / Truth Nobody / shocking / amazing.",
-    "description": "SEO-CRITICAL structure — follow exactly:\nLine 1 (max 140 chars): open with the EXACT 2-3 word phrase people search for this topic, then a compelling sentence. Front-load the keyword — YouTube indexes first words most heavily. Example: 'Black holes are regions...' / 'Octopuses have three hearts...' / 'The real reason Rome collapsed...'\nLine 2: The single most shocking specific fact from the script — include a real number or a scale comparison.\nLine 3: Subscribe to MindBlownFacts for daily mind-blowing facts.\nLine 4-5: 2 natural sentences weaving in long-tail keywords people actually search (e.g. 'Scientists recently discovered...', 'Most people never learn that...', 'The truth about X is...').\nFinal line: 10-12 hashtags — mix specific topic hashtags with broad ones: #Facts #DidYouKnow #Educational #Science #MindBlownFacts",
+    "description": "SEO-CRITICAL structure — follow exactly:\nLine 1 (max 140 chars): open with the EXACT 2-3 word phrase people search for this topic, then a compelling sentence. Front-load the keyword — YouTube indexes first words most heavily. Example: 'Black holes are regions...' / 'Octopuses have three hearts...' / 'The real reason Rome collapsed...'\nLine 2: The single most shocking specific fact from the script — include a real number or a scale comparison.\nLine 3: Subscribe for daily facts.\nLine 4-5: 2 natural sentences weaving in long-tail keywords people actually search (e.g. 'Scientists recently discovered...', 'Most people never learn that...', 'The truth about X is...').\nFinal line: 10-12 hashtags — mix specific topic hashtags with broad ones: #Facts #DidYouKnow #Educational #Science",
     "tags": {tags_instruction},
     "engagement_question": "One polarizing question about '{title}' that forces viewers to pick a side or defend a belief. Must be controversial-but-true — not a safe 'which fact surprised you' question. Good formats: (A) 'Hot take: [bold claim about topic]. Agree or disagree?' (B) 'Be honest — did you actually know this or did this just change your view?' (C) 'Most people believe [wrong thing about topic]. Are you one of them?' The question must make someone feel compelled to comment to either agree or prove you wrong. Never use: 'Which fact surprised you most?' / 'What did you learn?' / 'Tell us below!'"
   }}
@@ -553,7 +556,7 @@ def _generate_cluster_script(topic: dict, video_format: str) -> dict:
     # exceeded Groq's payload size limit (413). Content quality comes from the
     # structured user template instead.
     system_prompt = (
-        "You are an educational YouTube scriptwriter for MindBlownFacts. "
+        f"You are an educational YouTube scriptwriter for {_get_brand_name()}. "
         "Write factual, engaging scripts. Return only valid JSON, no markdown."
     )
 
@@ -762,6 +765,7 @@ def generate_script(topic: dict, logs_dir: Path | None = None) -> dict:
     close_rule  = _CLOSE_RULE_STANDARD if is_longform else variant["close_rule"]
 
     system_prompt = _SYSTEM_TMPL.format(
+        channel_name   = _get_brand_name(),
         description    = variant["description"],
         hook_rule      = augmented_hook_rule,
         tension_rule   = variant["tension_rule"],
