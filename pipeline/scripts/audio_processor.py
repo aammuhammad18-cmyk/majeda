@@ -37,6 +37,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 _STD_RATE = 44100
+_STD_CH   = 2
 LOUDNORM_FLOOR   = -16
 LOUDNORM_CEILING = -10
 
