@@ -62,6 +62,32 @@ _FONT_REG = (
     else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 )
 
+_IS_WIN = _platform.system() == "Windows"
+
+
+def _win_fix_filter(s: str) -> str:
+    """Fix FFmpeg filter expressions for Windows compatibility.
+
+    Problem: In ``-filter_complex``, ``fontfile='C:/Windows/Fonts/x.ttf'``
+    fails on Windows because FFmpeg's filter parser treats the ``'`` around
+    the path as quoting, but the ``:`` after the drive letter (``C:``) is
+    then misread as a key-value separator — breaking the rest of the chain.
+
+    Solution: Replace ``fontfile='X:/...'`` with ``fontfile=X\\:/...``
+    (escape the colon, drop the quotes).  This is cross-platform safe and
+    matches FFmpeg's own documentation for special-char escaping.
+    """
+    if not _IS_WIN:
+        return s
+    import re
+    # fontfile='<drive>:/<path>' → fontfile=<drive>\:/<path>
+    s = re.sub(
+        r"fontfile='([A-Za-z]):/([^']*)'",
+        r"fontfile=\1\\:/\2",
+        s,
+    )
+    return s
+
 
 def _escape_drawtext(text: str) -> str:
     """Sanitise text for FFmpeg drawtext filter.
@@ -984,6 +1010,20 @@ def _pad_to_duration(src: Path, dst: Path, target_s: float) -> None:
 
 
 def _run(cmd: list, label: str = "ffmpeg", timeout: int = 300) -> None:
+    # On Windows, strip single-quotes from filter expressions so FFmpeg can
+    # parse curves/alpha values correctly (see _win_fix_filter docstring).
+    if _IS_WIN:
+        fixed: list[str] = []
+        prev_is_filter = False
+        for arg in cmd:
+            s = str(arg)
+            if prev_is_filter:
+                s = _win_fix_filter(s)
+                prev_is_filter = False
+            elif s in ("-filter_complex", "-vf", "-lavfi"):
+                prev_is_filter = True
+            fixed.append(s)
+        cmd = fixed
     log.debug("FFmpeg [%s] %s …", label, " ".join(str(c) for c in cmd[:5]))
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if res.returncode != 0:

@@ -860,6 +860,22 @@ def select_bonus_topic(logs_dir: Path) -> dict | None:
     return None
 
 
+def _read_velocity_seeds(logs_dir: Path) -> list[dict]:
+    """Read velocity queue entries younger than 72 hours TTL."""
+    now = time.time()
+    queue_path = logs_dir / "velocity_queue.json"
+    if not queue_path.exists():
+        return []
+    try:
+        entries = json.loads(queue_path.read_text())
+        # Evict entries older than 72 hours (Gap 3 TTL)
+        fresh = [e for e in entries if now - e.get("ts", 0) < 72 * 3600]
+        return fresh
+    except Exception as exc:
+        log.debug("Read velocity seeds error: %s", exc)
+        return []
+
+
 def select_topic(logs_dir: Path) -> dict | None:
     produced_today  = _load_produced_today(logs_dir)
     full_history    = _load_full_history(logs_dir)
@@ -896,6 +912,20 @@ def select_topic(logs_dir: Path) -> dict | None:
             "saturation": "pass", "viral_score": 0.0,
             "performance_score": 50.0,
         }
+
+    # Priority 0.5: Velocity Queue (hot topics from viral videos >2x avg within 72h TTL)
+    velocity_seeds = _read_velocity_seeds(logs_dir)
+    for v_item in velocity_seeds:
+        v_cat  = v_item.get("category", "SCIENCE")
+        v_seed = v_item.get("seed", "")
+        if not v_seed:
+            continue
+        topic = _build_topic(v_cat, v_seed, full_history, f"viral follow-up: {v_item.get('source_title', '')}")
+        if topic:
+            topic["source"] = "VelocityQueue"
+            log.info("Velocity Queue topic [%s] (from '%.40s'): %s",
+                     v_cat, v_item.get("source_title", ""), topic["title"][:70])
+            return topic
 
     # Priority 1: YouTube Autocomplete — real-time search demand.
     # Each category contributes its top 3 highest-demand phrases, then ALL phrases
