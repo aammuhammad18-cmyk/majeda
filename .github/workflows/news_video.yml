@@ -2,11 +2,11 @@ name: MindBlownFacts Video Pipeline
 
 on:
   schedule:
-    - cron: '0 1 * * *'    # 01:00 UTC │ 08:00 PM EST (prev day) / 06:00 AM PKT — US prime evening
-    - cron: '0 7 * * *'    # 07:00 UTC │ 02:00 AM EST / 12:00 PM PKT — US overnight (weak slot, unavoidable)
-    - cron: '0 13 * * *'   # 13:00 UTC │ 08:00 AM EST / 06:00 PM PKT — US morning
-    - cron: '0 19 * * *'   # 19:00 UTC │ 02:00 PM EST / 12:00 AM PKT — US afternoon
-    - cron: '0 0 * * *'    # 00:00 UTC │ 07:00 PM EST / 05:00 AM PKT — AI & Technology bonus short
+    - cron: '0 1 * * *'    # 01:00 UTC │ 08:00 PM EST (prev day) / 06:00 AM PKT — Shorts 1 (US prime evening)
+    - cron: '0 7 * * *'    # 07:00 UTC │ 02:00 AM EST / 12:00 PM PKT — Standard 1 (8-10 min)
+    - cron: '0 13 * * *'   # 13:00 UTC │ 08:00 AM EST / 06:00 PM PKT — Shorts 2 (US morning)
+    - cron: '0 19 * * *'   # 19:00 UTC │ 02:00 PM EST / 12:00 AM PKT — Standard 2 (8-10 min)
+    - cron: '0 0 * * *'    # 00:00 UTC │ 07:00 PM EST / 05:00 AM PKT — Long 1 (6-8 min AI & Tech Deep Dive)
     # ── Background tasks — always running ──────────────────────────────────────
     - cron: '0 * * * *'   # Every hour — comment auto-responder + news monitor
   workflow_dispatch:
@@ -66,8 +66,12 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "format=${{ github.event.inputs.video_format || 'shorts' }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "0 7 * * *" ] || \
+               [ "${{ github.event.schedule }}" = "0 19 * * *" ]; then
+            # 07:00 UTC (2 AM EST / 12 PM PKT) + 19:00 UTC (2 PM EST / 12 AM PKT) = Standard (8-10 min)
+            echo "format=standard" >> $GITHUB_OUTPUT
           else
-            # 01:00, 07:00, 13:00, 19:00 UTC = Shorts
+            # 01:00, 13:00 UTC = Shorts
             echo "format=shorts" >> $GITHUB_OUTPUT
           fi
 
@@ -284,9 +288,8 @@ jobs:
             git commit -m "bot: update analytics data [skip ci]"
           git push 2>/dev/null || true
 
-  # ── Bonus Short — AI & Technology daily, 00:00 UTC (7 PM ET / 5 AM PKT) ───────
-  # 4th Short of the day — topic from today's real AI/tech news via RSS.
-  # Standard and Long formats are disabled — Shorts only.
+  # ── Long Video — AI & Technology daily, 00:00 UTC (7 PM ET / 5 AM PKT) ────────
+  # 1 Long format video of the day (6-8 min in-depth analysis) — topic from today's real AI/tech news via RSS.
   bonus-video:
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -323,7 +326,7 @@ jobs:
 
       - name: Run AI & Technology Bonus Video Pipeline
         env:
-          VIDEO_FORMAT:          shorts
+          VIDEO_FORMAT:          long
           TOPIC_SOURCE:          rss
           GROQ_API_KEY_1:        ${{ secrets.GROQ_API_KEY_1 }}
           GROQ_API_KEY_2:        ${{ secrets.GROQ_API_KEY_2 }}

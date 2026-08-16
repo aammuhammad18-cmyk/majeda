@@ -23,30 +23,32 @@ import requests
 
 log = logging.getLogger(__name__)
 
-_EL_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
-_EDGE_VOICE  = "en-US-ChristopherNeural"
+_EL_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")  # Adam / Deep US Narrator
+_EL_MODEL    = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")     # Best emotional inflection & realism
 
-_EL_SETTINGS_DEFAULT = {"stability": 0.75, "similarity_boost": 0.90, "style": 0.00, "use_speaker_boost": True}
-
+# Human-like dynamic settings (lower stability + style boost = natural variation, expressive breathing)
 _EL_SETTINGS: dict[str, dict] = {
-    "excited":    _EL_SETTINGS_DEFAULT,
-    "mysterious": _EL_SETTINGS_DEFAULT,
-    "dramatic":   _EL_SETTINGS_DEFAULT,
-    "neutral":    _EL_SETTINGS_DEFAULT,
+    "excited":    {"stability": 0.45, "similarity_boost": 0.85, "style": 0.45, "use_speaker_boost": True},
+    "mysterious": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.30, "use_speaker_boost": True},
+    "dramatic":   {"stability": 0.48, "similarity_boost": 0.88, "style": 0.40, "use_speaker_boost": True},
+    "neutral":    {"stability": 0.50, "similarity_boost": 0.82, "style": 0.30, "use_speaker_boost": True},
 }
 
+_EDGE_VOICE  = os.getenv("EDGE_VOICE", "en-US-AndrewMultilingualNeural")
+
+# Natural human speaking pace (+3% to +6%) instead of rushed robotic speed
 _EDGE_RATE: dict[str, str] = {
-    "excited":    "+24%",
-    "mysterious": "+14%",
-    "dramatic":   "+20%",
-    "neutral":    "+22%",
+    "excited":    "+6%",
+    "mysterious": "+0%",
+    "dramatic":   "+3%",
+    "neutral":    "+4%",
 }
 
 _EDGE_PITCH: dict[str, str] = {
-    "excited":    "+3Hz",
-    "mysterious": "+0Hz",
-    "dramatic":   "+2Hz",
-    "neutral":    "+2Hz",
+    "excited":    "+1Hz",
+    "mysterious": "-1Hz",
+    "dramatic":   "+0Hz",
+    "neutral":    "+0Hz",
 }
 
 def _auto_tts_rate_adjust() -> int:
@@ -171,41 +173,41 @@ def _generate(text: str, out: Path, emotion: str, fallback_duration_s: float = 3
 
 
 def _edge_tts(text: str, out: Path, emotion: str) -> bool:
-    base = int(_EDGE_RATE.get(emotion, "+0%").replace("%", ""))
+    base = int(_EDGE_RATE.get(emotion, "+4%").replace("%", ""))
     adjusted = max(-30, min(30, base + _auto_tts_rate_adjust()))
     rate  = f"{adjusted:+d}%"
     pitch = _EDGE_PITCH.get(emotion, "+0Hz")
-    for attempt in range(2):
-        try:
-            async def _run():
-                import edge_tts
-                comm = edge_tts.Communicate(text, voice=_EDGE_VOICE, rate=rate, pitch=pitch)
-                await comm.save(str(out))
-            # Use get_event_loop instead of asyncio.run() to avoid nested loop crash
+    
+    voices = [_EDGE_VOICE, "en-US-ChristopherNeural", "en-US-GuyNeural"]
+    for voice in voices:
+        for attempt in range(2):
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                        ex.submit(asyncio.run, _run()).result(timeout=30)
-                else:
-                    loop.run_until_complete(_run())
-            except RuntimeError:
-                asyncio.run(_run())
-            if out.exists() and out.stat().st_size > 500:
-                return True
-        except Exception as exc:
-            log.debug("edge-tts attempt %d: %s", attempt + 1, exc)
-            if attempt == 0:
-                import time as _t; _t.sleep(1)
+                async def _run(v=voice):
+                    import edge_tts
+                    comm = edge_tts.Communicate(text, voice=v, rate=rate, pitch=pitch)
+                    await comm.save(str(out))
+                # Use get_event_loop instead of asyncio.run() to avoid nested loop crash
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                            ex.submit(asyncio.run, _run()).result(timeout=30)
+                    else:
+                        loop.run_until_complete(_run())
+                except RuntimeError:
+                    asyncio.run(_run())
+                if out.exists() and out.stat().st_size > 500:
+                    return True
+            except Exception as exc:
+                log.debug("edge-tts voice %s attempt %d: %s", voice, attempt + 1, exc)
+                if attempt == 0:
+                    import time as _t; _t.sleep(1)
     return False
 
 
 # Keys that returned 401/429 this run — skip them for remaining scenes
 _el_exhausted: set[str] = set()
-
-
-_EL_MODEL = "eleven_monolingual_v1"
 
 
 def _elevenlabs(text: str, out: Path, emotion: str) -> bool:
